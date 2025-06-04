@@ -1,0 +1,12 @@
+flask
+flask-cors
+python-dotenv
+requests
+pandas
+numpy
+scikit-learn
+faiss-cpu
+langchain
+langchain_community
+langchain-openai
+pydantic
