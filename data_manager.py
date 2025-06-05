@@ -70,9 +70,9 @@ class RestaurantDataManager:
     def load_restaurants(self, location: str = 'Los Angeles', max_results: int = 100):
         """Load restaurant data with progress tracking"""
         try:
-            # Load from Yelp API
+            # Load restaurants from Yelp API or local JSON
             self.restaurants_data = self.get_restaurants({'location': location}, max_results)
-            print(f"Fetched {len(self.restaurants_data)} restaurants from Yelp API for location '{location}'")
+            print(f"Fetched {len(self.restaurants_data)} restaurants for location '{location}'")
             
             # Try to load existing models first
             if self._load_existing_models():
@@ -89,26 +89,34 @@ class RestaurantDataManager:
             print(f"❌ Error loading restaurants: {e}")
     
     def get_restaurants(self, query: dict = None, max_results: int = 100):
-        """Fetch restaurants from Yelp API with pagination support."""
-        url = 'https://api.yelp.com/v3/businesses/search'
-        headers = {'Authorization': f'Bearer {YELP_API_KEY}'}
-        
-        params = {
-            'term': 'restaurant',
-            'location': 'Los Angeles',
-            'limit': 50,
-        }
-        if query:
-            params.update(query)
-        
-        all_businesses = []
-        total_to_fetch = min(max_results, 240)  # Yelp API limit
-        
-        for offset in range(0, total_to_fetch, 50):
-            params['offset'] = offset
-            params['limit'] = min(50, total_to_fetch - offset)
+        """Fetch restaurants from Yelp API or local JSON if API fails."""
+        # First try Yelp API
+        try:
+            url = 'https://api.yelp.com/v3/businesses/search'
+            headers = {'Authorization': f'Bearer {YELP_API_KEY}'}
             
-            try:
+            params = {
+                'term': 'restaurant',
+                'location': 'Los Angeles',
+                'limit': 50,
+            }
+            if query:
+                # Ensure location is properly formatted
+                if 'location' in query:
+                    params['location'] = query['location'].replace(' ', '+')
+                
+                # Add other query parameters
+                for key, value in query.items():
+                    if key != 'location':  # We already handled location
+                        params[key] = value
+            
+            all_businesses = []
+            total_to_fetch = min(max_results, 240)  # Yelp API limit
+            
+            for offset in range(0, total_to_fetch, 50):
+                params['offset'] = offset
+                params['limit'] = min(50, total_to_fetch - offset)
+                
                 response = requests.get(url, headers=headers, params=params)
                 response.raise_for_status()
                 data = response.json()
@@ -122,11 +130,37 @@ class RestaurantDataManager:
                 if len(businesses) < params['limit']:
                     break
                     
-            except Exception as e:
-                print(f"Error fetching restaurants: {e}")
-                break
+            print(f"✅ Fetched {len(all_businesses)} restaurants from Yelp API")
+            return all_businesses
+            
+        except Exception as e:
+            print(f"❌ Yelp API failed: {e}")
+            print("🔄 Attempting to load from local dataset...")
+            
+            # Fallback to local JSON dataset
+            json_path = "dataset/yelp_restaurants_full.json"
+            try:
+                # Fix: Use UTF-8 encoding to handle special characters
+                with open(json_path, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    
+                # Handle different JSON structures
+                if isinstance(data, dict) and 'businesses' in data:
+                    businesses = data['businesses']
+                elif isinstance(data, list):
+                    businesses = data
+                else:
+                    raise ValueError("Unexpected JSON structure")
+                    
+                # Apply max_results limit
+                limited_businesses = businesses[:max_results]
+                print(f"✅ Loaded {len(limited_businesses)} restaurants from local dataset")
+                return limited_businesses
                 
-        return all_businesses
+            except Exception as fallback_error:
+                print(f"❌ Failed to load local dataset: {fallback_error}")
+                print("⚠️  Returning empty restaurant list")
+                return []
         
     def _load_menu_cache(self):
         """Load cached menu items"""
