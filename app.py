@@ -198,8 +198,8 @@ def reset_conversation():
         'timestamp': datetime.now().isoformat()
     })
 
-if __name__ == "__main__":
-    print("🍽️ Starting Enhanced Restaurant AI Concierge...")
-    print(f"Current time period: {get_day_part()}")
-    print(f"Yelp API available: {'Yes' if YELP_API_KEY else 'No'}")
-    app.run(debug=True, host='0.0.0.0', port=5000)
+# if __name__ == "__main__":
+#     print("🍽️ Starting Enhanced Restaurant AI Concierge...")
+#     print(f"Current time period: {get_day_part()}")
+#     print(f"Yelp API available: {'Yes' if YELP_API_KEY else 'No'}")
+#     app.run(debug=True, host='0.0.0.0', port=5000)
