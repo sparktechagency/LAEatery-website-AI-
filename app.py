@@ -13,8 +13,8 @@ load_dotenv()
 app = Flask(__name__, static_folder='static')
 CORS(app)
 
-# YELP_API_KEY = os.getenv("YELP_API_KEY")
-YELP_API_KEY='P5zi5ALz7qgetgFT7ZrtCqwXI4G77XymHaDOQd6y6svUsw4WyKy0tpcFbEDpXNGNW9Sx437_7faOR0ZKgpHEtFi5re6xOpLs7QzQzmyi-jsJ3JtG4f_zawCTHOIWaHYx'
+YELP_API_KEY = os.getenv("YELP_API_KEY")
+
 # Global conversation history
 conversation_history = []
 
@@ -146,7 +146,7 @@ def get_trending_restaurants():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
     
-    
+
 @app.route('/health')
 def health_check():
     """Enhanced health check with model status"""
