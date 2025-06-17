@@ -1,3 +1,8 @@
 timestamp,restaurant_name,latitude,longitude,user_query,rating,review_count,categories,price
 2025-06-05 09:30:36,Maccheroni Republic,34.0500282776566,-118.24852800000085,give me full details of Maccheroni Republic,0,0,,
 2025-06-05 09:43:05,Tu Madre - West Hollywood,34.091274,-118.36317,give me full details of Tu Madre - West Hollywood,0,0,,
+2025-06-05 11:13:42,Kingyubu,34.057451,-118.295235,give me full details including trending of  Kingyubu,0,0,,
+2025-06-05 12:18:22,Morrison Atwater Village,34.1237706877468,-118.2687331,yes,0,0,,
+2025-06-05 12:20:29,Morrison Atwater Village,34.1237706877468,-118.2687331,get the full details with trending,0,0,,
+2025-06-05 12:21:24,Morrison Atwater Village,34.1237706877468,-118.2687331,get the full details with its trend,0,0,,
+2025-06-05 12:22:12,Morrison Atwater Village,34.1237706877468,-118.2687331,full details with trend score,0,0,,

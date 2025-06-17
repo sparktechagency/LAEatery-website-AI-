@@ -13,8 +13,8 @@ load_dotenv()
 app = Flask(__name__, static_folder='static')
 CORS(app)
 
-YELP_API_KEY = os.getenv("YELP_API_KEY")
-
+# YELP_API_KEY = os.getenv("YELP_API_KEY")
+YELP_API_KEY='P5zi5ALz7qgetgFT7ZrtCqwXI4G77XymHaDOQd6y6svUsw4WyKy0tpcFbEDpXNGNW9Sx437_7faOR0ZKgpHEtFi5re6xOpLs7QzQzmyi-jsJ3JtG4f_zawCTHOIWaHYx'
 # Global conversation history
 conversation_history = []
 
@@ -89,46 +89,64 @@ def get_trending_restaurants():
     """Get currently trending restaurants - future predictions only on explicit request"""
     try:
         show_future = request.args.get('future', 'false').lower() == 'true'
-        
+       
         # Get top trending restaurants based on current hype scores
         trending_data = []
-        
-        for restaurant in concierge.data_manager.restaurants_data[:20]:  # Sample top 20
+       
+        for restaurant in concierge.data_manager.restaurants_data[:20]: 
             hype_score = concierge.data_manager.predict_hype_score(restaurant)
-            
+           
             if hype_score > 70:  # Only high-hype restaurants
-                categories = ", ".join([cat['title'] for cat in restaurant.get('categories', [])])
                 restaurant_data = {
+                    'id': restaurant.get('id'),
+                    'alaias': restaurant.get('alias'),
                     'name': restaurant.get('name'),
+                    'is_closed': restaurant.get('is_closed', False),
+                    'category': ", ".join([cat['title'] for cat in restaurant.get('categories', [])]),
+                    'price': restaurant.get('price', 'N/A'),
+                    'phone': restaurant.get('phone', 'N/A'),
+                    'display_phone': restaurant.get('display_phone', 'N/A'),
+                    'distance': round(restaurant.get('distance', 0)),
+                    'business_hours': restaurant.get('business_hours', []),
+                    'url': restaurant.get('url'),
                     'image_url': restaurant.get('image_url'),
-                    'categories': categories,
                     'rating': restaurant.get('rating'),
                     'hype_score': round(hype_score, 1),
                     'review_count': restaurant.get('review_count'),
-                    'location': f"{restaurant.get('coordinates', {}).get('latitude', '')}, {restaurant.get('coordinates', {}).get('longitude', '')}"
+                    'transaction_types': ", ".join(restaurant.get('transactions', [])),
+                    'address': ", ".join(restaurant.get('location', {}).get('display_address', [])),
+                    'city': restaurant.get('location', {}).get('city', ''),
+                    'state': restaurant.get('location', {}).get('state', ''),
+                    'zip_code': restaurant.get('location', {}).get('zip_code', ''),
+                    'country': restaurant.get('location', {}).get('country', ''),
+                    'business_hours': restaurant.get('business_hours', []),
+                    'attributes': restaurant.get('attributes', {}),
+                    'coordinates': restaurant.get('coordinates', {}),
+                    'location': restaurant.get('location', {})
                 }
-                
+               
                 # Only add future trend data if explicitly requested
                 if show_future:
                     future_score = concierge.data_manager.predict_future_popularity(restaurant)
                     restaurant_data['future_trend'] = round(future_score, 1)
                     restaurant_data['prediction'] = 'Rising Star' if future_score > hype_score + 5 else 'Currently Hot'
-                
+               
                 trending_data.append(restaurant_data)
-        
+       
         # Sort by current hype score (or future trend if requested)
         sort_key = 'future_trend' if show_future else 'hype_score'
         trending_data.sort(key=lambda x: x.get(sort_key, 0), reverse=True)
-        
+       
         return jsonify({
             'trending_restaurants': trending_data[:10],
             'showing_future_predictions': show_future,
             'timestamp': datetime.now().isoformat()
         })
-    
+   
     except Exception as e:
         return jsonify({'error': str(e)}), 500
-
+    
+    
 @app.route('/health')
 def health_check():
     """Enhanced health check with model status"""
