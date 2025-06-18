@@ -3,84 +3,117 @@ import pandas as pd
 from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
 from datetime import datetime
+from flask_sqlalchemy import SQLAlchemy
+from dotenv import load_dotenv
 from data_manager import RestaurantDataManager, get_day_part
-from ai_tools import RestaurantConcierge
+from ai_tools import RestaurantConcierge, conversation_history
 
 # Load environment variables
-from dotenv import load_dotenv
 load_dotenv()
 
 app = Flask(__name__, static_folder='static')
 CORS(app)
 
-YELP_API_KEY = os.getenv("YELP_API_KEY")
-
-# Global conversation history
-conversation_history = []
+# Configure Database
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///chat_history.db')  
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+db = SQLAlchemy(app)
 
 # Initialize concierge
 concierge = RestaurantConcierge()
 
 # Load restaurant data on startup
+YELP_API_KEY = os.getenv("YELP_API_KEY")
 if YELP_API_KEY:
     concierge.data_manager.load_restaurants('Los Angeles', 240)
 else:
     print("Warning: Restaurant data file not found. Please ensure 'yelp_restaurants_full.json' exists.")
 
+# Model for storing chat history
+class ChatHistory(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.String(80), nullable=False)
+    user_message = db.Column(db.String(500), nullable=False)
+    bot_response = db.Column(db.String(500), nullable=False)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f'<ChatHistory {self.user_id} - {self.user_message} - {self.bot_response}>'
+
+# Create tables if not already created
+with app.app_context():
+    db.create_all()  # Only create tables, don't drop existing data
+
+
 @app.route('/')
 def index():
-    return render_template('index.html')
+    return render_template('index4_1.html')
 
 @app.route('/chat', methods=['POST'])
 def chat_endpoint():
-    """Enhanced chat endpoint with conversation flow"""
-    try:
-        data = request.json
-        print(f"Received chat request: {data}")
-        user_message = data.get('message', '')
-        
-        if not user_message:
-            return jsonify({'error': 'No message provided'}), 400
-        
-        # Process message through enhanced concierge
-        response = concierge.chat(user_message)
-        
-        return jsonify({
-            'response': response,
-            'conversation_stage': concierge.conversation_stage,
-            'timestamp': datetime.now().isoformat()
-        })
-    
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/chat', methods=['POST'])
-def chat_endpoint1():
     """Enhanced chat endpoint with conversation flow and user_id param"""
     try:
-        user_id = request.args.get('user_id', None)  # Get user_id from URL params
-        data = request.json or {}
+        # Check if user_id exists in URL parameters, fallback to 'default_user' if missing
+        user_id = request.args.get('user_id', 'default_user')
+        data = request.json
         user_message = data.get('message', '')
-        
+
         print(f"Received chat request from user_id={user_id}: {data}")
-        
-        if not user_id:
-            return jsonify({'error': 'Missing user_id in query parameters'}), 400
-        
+
         if not user_message:
             return jsonify({'error': 'No message provided in JSON body'}), 400
-        
-        # You can optionally use user_id for per-user session or logging here
-        
+
+        # Process message through concierge to get the bot's response
         response = concierge.chat(user_message)
         
+        # Ensure response is a string
+        if not isinstance(response, str):
+            response = str(response)
+
+        # Save both user message and bot response to database
+        chat_entry = ChatHistory(
+            user_id=user_id, 
+            user_message=user_message, 
+            bot_response=response
+        )
+        
+        db.session.add(chat_entry)
+        db.session.commit()
+
+        print(f"Chat entry saved: {chat_entry}")
+
         return jsonify({
             'user_id': user_id,
             'response': response,
             'conversation_stage': concierge.conversation_stage,
             'timestamp': datetime.now().isoformat()
         })
-    
+
+    except Exception as e:
+        # Handle any other errors
+        error_response = "Our service is temporarily unavailable. Please try again in a moment."
+        return jsonify({
+            'user_id': user_id,
+            'response': error_response,
+            'timestamp': datetime.now().isoformat()
+        })
+
+@app.route('/get_user_chat_history', methods=['GET'])
+def get_user_chat_history():
+    """Get chat history for a specific user"""
+    try:
+        user_id = request.args.get('user_id', 'default_user')  # Get user_id from query param, default to 'default_user'
+        chat_history = ChatHistory.query.filter_by(user_id=user_id).all()
+
+        history = [{
+            'user_id': entry.user_id,
+            'user_message': entry.user_message,
+            'bot_response': entry.bot_response,
+            'timestamp': entry.timestamp.isoformat()
+        } for entry in chat_history]
+
+        return jsonify({'chat_history': history, 'user_id': user_id})
+
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -130,7 +163,6 @@ def get_trending_restaurants():
                     future_score = concierge.data_manager.predict_future_popularity(restaurant)
                     restaurant_data['future_trend'] = round(future_score, 1)
                     restaurant_data['prediction'] = 'Rising Star' if future_score > hype_score + 5 else 'Currently Hot'
-               
                 trending_data.append(restaurant_data)
        
         # Sort by current hype score (or future trend if requested)
@@ -145,7 +177,6 @@ def get_trending_restaurants():
    
     except Exception as e:
         return jsonify({'error': str(e)}), 500
-    
 
 @app.route('/health')
 def health_check():
@@ -198,8 +229,9 @@ def reset_conversation():
         'timestamp': datetime.now().isoformat()
     })
 
-# if __name__ == "__main__":
-#     print("🍽️ Starting Enhanced Restaurant AI Concierge...")
-#     print(f"Current time period: {get_day_part()}")
-#     print(f"Yelp API available: {'Yes' if YELP_API_KEY else 'No'}")
-#     app.run(debug=True, host='0.0.0.0', port=5000)
+if __name__ == "__main__":
+    print("🍽️ Starting Enhanced Restaurant AI Concierge...")
+    print(f"Current time period: {get_day_part()}")
+    print(f"Yelp API available: {'Yes' if YELP_API_KEY else 'No'}")
+    print(f"Database: {app.config['SQLALCHEMY_DATABASE_URI']}")
+    app.run(debug=True, host='0.0.0.0', port=5000)

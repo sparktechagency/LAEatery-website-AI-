@@ -251,6 +251,7 @@ class RestaurantNameSearchTool(BaseTool):
                     'rating': restaurant.get('rating'),
                     'review_count': restaurant.get('review_count'),
                     'price': restaurant.get('price', 'N/A'),
+                    'location': ", ".join(restaurant.get('location', {}).get('display_address', [])),
                     'ai_summary': self.data_manager.generate_ai_summary(restaurant),
                     'menu_items': self.data_manager._extract_menu_items(restaurant),
                 })
@@ -346,6 +347,7 @@ class RestaurantDetailsTool(BaseTool):
             'menu_items': menu_items,
             'best_time_to_visit': get_day_part(),
             'attributes': restaurant.get('attributes', {}),
+            'location': ", ".join(restaurant.get('location', {}).get('display_address', [])),
             'business_hours': restaurant.get('business_hours', [])
         }
         
@@ -386,7 +388,8 @@ class RestaurantConcierge:
         self.llm = ChatOpenAI(
             model="gpt-4o-mini",
             temperature=0.4,
-            openai_api_key=os.getenv("OPENAI_API_KEY")
+            openai_api_key=os.getenv("OPENAI_API_KEY"),
+            request_timeout=20
         )
         self.memory = ConversationBufferMemory(
             memory_key="chat_history",
@@ -454,6 +457,8 @@ class RestaurantConcierge:
         • **Categories**: [Cuisine types]
         • **Popular Menu**: [Menu items]
         • **Visit Tip**: [Best time/recommendation]
+        • **Location**: [Address]
+        • **Atmosphere**: [Description of vibe]
         • **Contact**: [Phone] | [Link to details]
 
         RESPONSE FORMAT for trend queries (WITH SCORES):
@@ -465,6 +470,7 @@ class RestaurantConcierge:
         • **Trend Analysis**: [Rising/Stable/Declining with explanation]
         • **Categories**: [Cuisine types]
         • **Popular Menu**: [Menu items]
+        • **Location**: [Address]
 
         MEAL PLAN FORMAT:
         **📅 [Duration] Meal Plan for [Location]**
@@ -535,10 +541,14 @@ class RestaurantConcierge:
             return assistant_response
             
         except Exception as e:
-            error_response = f"I apologize, but I encountered an error: {str(e)}. Please try rephrasing your question."
-            conversation_history.append({"role": "assistant", "content": error_response})
-            return error_response
-    
+            error_msg = (
+                "I'm having trouble connecting to the AI service right now. "
+                "This might be due to high demand or temporary issues.\n\n"
+                "Could you please **rephrase your question** or try asking again?"
+            )
+            conversation_history.append({"role": "assistant", "content": error_msg})
+            return error_msg
+
     def _update_conversation_stage(self, user_input: str):
         """Update conversation stage based on user input"""
         lower_input = user_input.lower()
